@@ -14,21 +14,25 @@ jobs:
     steps:
       # Kodu çek
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Node.js kur
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
 
       # Java kur (Android için gerekli)
       - name: Setup Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
+
+      # Android SDK kur
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       # Bağımlılıkları yükle
       - name: Install dependencies
@@ -36,12 +40,21 @@ jobs:
 
       # Gradle cache (build süresini kısaltır)
       - name: Cache Gradle
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # Android manifest ve gradle dosyalarını kontrol et
+      - name: Verify Android setup
+        run: |
+          ls -la android/
+          ls -la android/app/
+          cat android/app/build.gradle | head -20
 
       # Keystore oluştur (imzalama için)
       - name: Generate Keystore
@@ -59,19 +72,37 @@ jobs:
       - name: Create gradle.properties
         run: |
           cd android
-          cat > gradle.properties << EOF
-          MINDFLOW_UPLOAD_STORE_FILE=mindflow-release.keystore
-          MINDFLOW_UPLOAD_KEY_ALIAS=mindflow
-          MINDFLOW_UPLOAD_STORE_PASSWORD=mindflow123
-          MINDFLOW_UPLOAD_KEY_PASSWORD=mindflow123
-          EOF
+          echo "MINDFLOW_UPLOAD_STORE_FILE=mindflow-release.keystore" > gradle.properties
+          echo "MINDFLOW_UPLOAD_KEY_ALIAS=mindflow" >> gradle.properties
+          echo "MINDFLOW_UPLOAD_STORE_PASSWORD=mindflow123" >> gradle.properties
+          echo "MINDFLOW_UPLOAD_KEY_PASSWORD=mindflow123" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m" >> gradle.properties
+          cat gradle.properties
+
+      # Clean build
+      - name: Clean Android build
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew clean --no-daemon
 
       # Android APK build
       - name: Build Android APK
         run: |
           cd android
-          chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease --no-daemon --info
+
+      # APK dosyasını kontrol et
+      - name: Verify APK exists
+        run: |
+          ls -la android/app/build/outputs/apk/release/
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            echo "APK found!"
+            ls -lh android/app/build/outputs/apk/release/app-release.apk
+          else
+            echo "APK not found!"
+            exit 1
+          fi
 
       # APK'yı yükle
       - name: Upload APK
