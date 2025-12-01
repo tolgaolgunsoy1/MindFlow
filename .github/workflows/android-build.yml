@@ -2,124 +2,127 @@ name: MindFlow Android Build
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
   pull_request:
-    branches: [ main ]
-  workflow_dispatch: # Manuel tetikleme için
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # Kodu çek
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      # Node.js kur
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
 
-      # Java kur (Android için gerekli)
-      - name: Setup Java
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
 
-      # Android SDK kur
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      # Bağımlılıkları yükle
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
-      # Gradle cache (build süresini kısaltır)
       - name: Cache Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
+            android/.gradle
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # Android manifest ve gradle dosyalarını kontrol et
-      - name: Verify Android setup
-        run: |
-          ls -la android/
-          ls -la android/app/
-          cat android/app/build.gradle | head -20
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
 
-      # Keystore oluştur (imzalama için)
-      - name: Generate Keystore
+      - name: Generate Debug Keystore
         run: |
-          cd android/app
+          mkdir -p android/app
           keytool -genkeypair -v -storetype PKCS12 \
-            -keystore mindflow-release.keystore \
-            -alias mindflow \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass mindflow123 \
-            -keypass mindflow123 \
-            -dname "CN=MindFlow, OU=Development, O=MindFlow, L=Istanbul, ST=Istanbul, C=TR"
+            -keystore android/app/debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
 
-      # gradle.properties oluştur
       - name: Create gradle.properties
         run: |
-          cd android
-          echo "MINDFLOW_UPLOAD_STORE_FILE=mindflow-release.keystore" > gradle.properties
-          echo "MINDFLOW_UPLOAD_KEY_ALIAS=mindflow" >> gradle.properties
-          echo "MINDFLOW_UPLOAD_STORE_PASSWORD=mindflow123" >> gradle.properties
-          echo "MINDFLOW_UPLOAD_KEY_PASSWORD=mindflow123" >> gradle.properties
-          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m" >> gradle.properties
-          cat gradle.properties
+          cat > android/gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError
+          org.gradle.parallel=true
+          org.gradle.configureondemand=true
+          org.gradle.daemon=true
+          android.useAndroidX=true
+          android.enableJetifier=true
 
-      # Clean build
-      - name: Clean Android build
+          MINDFLOW_UPLOAD_STORE_FILE=debug.keystore
+          MINDFLOW_UPLOAD_KEY_ALIAS=androiddebugkey
+          MINDFLOW_UPLOAD_STORE_PASSWORD=android
+          MINDFLOW_UPLOAD_KEY_PASSWORD=android
+          EOF
+
+      - name: Clean Gradle
         run: |
           cd android
-          chmod +x gradlew
-          ./gradlew clean --no-daemon
+          ./gradlew clean
 
-      # Android APK build
-      - name: Build Android APK
+      - name: Build APK
         run: |
           cd android
-          ./gradlew assembleRelease --no-daemon --info
+          ./gradlew assembleRelease --stacktrace --info
 
-      # APK dosyasını kontrol et
-      - name: Verify APK exists
+      - name: List APK files
         run: |
-          ls -la android/app/build/outputs/apk/release/
-          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            echo "APK found!"
-            ls -lh android/app/build/outputs/apk/release/app-release.apk
-          else
-            echo "APK not found!"
-            exit 1
-          fi
+          echo "APK dosyaları:"
+          find android/app/build/outputs -name "*.apk" -type f
 
-      # APK'yı yükle
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: mindflow-release-${{ github.run_number }}
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: mindflow-v1.0.${{ github.run_number }}
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
+          if-no-files-found: error
 
-      # Release oluştur (opsiyonel)
       - name: Create Release
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: MindFlow v1.0.${{ github.run_number }}
-          files: android/app/build/outputs/apk/release/app-release.apk
+          name: MindFlow Release v1.0.${{ github.run_number }}
+          body: |
+            🚀 MindFlow APK - Otomatik Build #${{ github.run_number }}
+
+            📱 **Nasıl Kurulur:**
+            1. APK dosyasını indirin
+            2. Telefonunuzda "Bilinmeyen Kaynaklardan Yükleme" iznini açın
+            3. APK'yı kurun
+
+            ✨ **Özellikler:**
+            - Firebase bağımsız çalışma
+            - LocalStorage ile offline mod
+            - Zihin haritası oluşturma
+
+            📅 Build Tarihi: ${{ github.event.head_commit.timestamp }}
+            🔨 Commit: ${{ github.sha }}
+          files: |
+            android/app/build/outputs/apk/release/*.apk
           draft: false
           prerelease: false
         env:
