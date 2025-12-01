@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
-import FirebaseService from './src/services/firebase';
 import useOfflineStore from './src/store/offlineStore';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
