@@ -1,4 +1,4 @@
-// src/components/Canvas.tsx
+// Canvas component for mind map visualization and interaction
 import React, { useRef, useState, useMemo, useCallback } from 'react';
 import {
   View,
@@ -83,7 +83,7 @@ const Canvas: React.FC<CanvasProps> = ({ onNodePress }) => {
         const cursorY = (gestureState.y0 - pan.y) / zoom;
         collabActions.updateCursor(cursorX, cursorY);
 
-        // Eğer seçili node yoksa, canvas'ı kaydır
+        // Pan canvas if no node is selected
         if (!selectedNode) {
           actions.setPan({
             x: pan.x + gestureState.dx - lastPanRef.current.x,
@@ -164,7 +164,7 @@ const Canvas: React.FC<CanvasProps> = ({ onNodePress }) => {
 
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
-      {/* SVG katmanı - Bağlantılar için */}
+      {/* SVG layer for connections */}
       <Svg
         width={SCREEN_WIDTH}
         height={SCREEN_HEIGHT}
@@ -173,7 +173,7 @@ const Canvas: React.FC<CanvasProps> = ({ onNodePress }) => {
         {renderConnections()}
       </Svg>
 
-      {/* Node'lar için View katmanı */}
+      {/* View layer for nodes */}
       <View style={StyleSheet.absoluteFill}>
         {renderNodes()}
         {renderCollaboratorCursors()}

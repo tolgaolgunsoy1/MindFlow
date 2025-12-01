@@ -1,5 +1,4 @@
-// src/services/firebase.ts
-
+// Firebase service for cloud data storage and real-time features
 import auth from '@react-native-firebase/auth';
 import database from '@react-native-firebase/database';
 import { MindMap, Node, Connection, Comment } from '../types';
@@ -8,8 +7,6 @@ import { v4 as uuidv4 } from 'uuid';
 class FirebaseService {
   private db = database();
   private auth = auth();
-
-  // ==================== Authentication ====================
 
   async signInWithEmail(email: string, password: string) {
     try {
@@ -53,8 +50,6 @@ class FirebaseService {
   onAuthStateChanged(callback: (user: any) => void) {
     return this.auth.onAuthStateChanged(callback);
   }
-
-  // ==================== MindMap CRUD ====================
 
   async createMindMap(mindMap: Omit<MindMap, 'id'>) {
     try {
@@ -120,8 +115,6 @@ class FirebaseService {
     }
   }
 
-  // ==================== Real-time Methods ====================
-
   onMindMapChange(mapId: string, callback: (map: MindMap) => void) {
     const ref = this.db.ref(`mindmaps/${mapId}`);
     ref.on('value', (snapshot) => {
@@ -156,8 +149,6 @@ class FirebaseService {
     });
     return () => ref.off('child_removed');
   }
-
-  // ==================== Comments ====================
 
   async addComment(comment: Omit<Comment, 'id' | 'timestamp'>) {
     try {
@@ -195,8 +186,6 @@ class FirebaseService {
       throw error;
     }
   }
-
-  // ==================== Collaboration ====================
 
   async shareMapWithUser(mapId: string, userId: string, role: 'editor' | 'viewer') {
     try {

@@ -1,8 +1,5 @@
-// src/services/serviceManager.ts
-
 import LocalStorageService from './localStorage';
 
-// Try to import Firebase - this will be undefined if Firebase is not configured
 let FirebaseService: any = null;
 try {
   FirebaseService = require('./firebase').default;
@@ -16,11 +13,8 @@ class ServiceManager {
   private usingFirebase: boolean = false;
 
   private constructor() {
-    // Start with local storage as default
     this.currentService = LocalStorageService;
     this.usingFirebase = false;
-
-    // Try to initialize Firebase asynchronously without blocking
     this.tryInitializeFirebase();
   }
 
@@ -31,15 +25,12 @@ class ServiceManager {
     }
 
     try {
-      // Test Firebase connection - if this succeeds, switch to Firebase
       await FirebaseService.getCurrentUser();
-
       this.currentService = FirebaseService;
       this.usingFirebase = true;
       console.log('Switched to Firebase service for data storage');
     } catch (error) {
       console.warn('Firebase initialization failed, continuing with local storage:', error);
-      // Keep using local storage
     }
   }
 
